@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threads 文章分割工具</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --panel-color: #111111;
+            --text-color: #ffffff;
+            --accent-color: #ffffff;
+            --border-color: #333333;
+            --button-color: #8a2be2;
+            --button-hover: #9932cc;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            /* Removed height: 100vh; and overflow: hidden; to allow page scrolling */
+        }
+        
+        .header {
+            padding: 15px 20px;
+            background-color: var(--panel-color);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+        
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            /* Removed overflow: hidden; to allow content to expand */
+        }
+        
+        .panel {
+            flex: 0 0 45%;
+            background-color: var(--panel-color);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            /* Set a minimum height instead of using flex: 1 */
+            min-height: 500px;
+            /* Remove overflow: hidden; to allow content to expand */
+        }
+        
+        .panel-header {
+            margin-bottom: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 60px;
+            background-color: var(--panel-color);
+            z-index: 5;
+            padding: 5px 0;
+        }
+        
+        .editor {
+            display: flex;
+            flex-direction: column;
+            /* Remove overflow: hidden; to allow content to expand */
+        }
+        
+        .font-size-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .font-size-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            background: #444;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        .font-size-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        textarea {
+            width: calc(100% - 30px);
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            resize: none;
+            font-size: 16px;
+            line-height: 1.6;
+            background-color: var(--panel-color);
+            color: var(--text-color);
+            margin-bottom: 15px;
+            /* Adjusted for dynamic height */
+            height: auto;
+            min-height: 300px;
+        }
+        
+        .output-container {
+            /* Removed overflow-y: auto; to prevent internal scrolling */
+            /* Let content expand naturally */
+            padding-right: 15px;
+        }
+        
+        .output-box {
+            position: relative;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            background-color: var(--bg-color);
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .output-box-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        
+        .part-number {
+            font-weight: 500;
+            color: var(--accent-color);
+        }
+        
+        .char-count {
+            font-size: 0.85rem;
+            color: #aaa;
+            background-color: #333;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        .output-text {
+            width: calc(100% - 24px);
+            height: auto;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            resize: none;
+            font-size: 15px;
+            line-height: 1.6;
+            background-color: var(--panel-color);
+            color: var(--text-color);
+            margin-bottom: 12px;
+            overflow-y: hidden;
+        }
+        
+        .copy-btn {
+            background-color: var(--button-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            align-self: flex-start;
+        }
+        
+        .copy-btn:hover {
+            background-color: var(--button-hover);
+        }
+        
+        .copy-btn.copied {
+            background-color: #ba55d3;
+        }
+        
+        #partCount {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-left: 5px;
+        }
+        
+        /* Customized scrollbar for the whole page */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                padding: 15px;
+            }
+            
+            .panel {
+                flex: 0 0 auto;
+                min-height: auto;
+            }
+            
+            .output-text {
+                min-height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Threads 文章分割工具</h1>
+    </div>
+    
+    <div class="container">
+        <div class="panel">
+            <div class="panel-header">输入文章</div>
+            <div class="editor">
+                <div class="font-size-control">
+                    <span>字体大小</span>
+                    <input type="range" min="12" max="24" value="16" class="font-size-slider" id="fontSizeSlider">
+                </div>
+                <textarea id="inputText" placeholder="在此粘贴您的长文章..." style="font-size: 16px;"></textarea>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-header">
+                <span>分割结果</span>
+                <span id="partCount"></span>
+            </div>
+            <div class="output-container" id="outputContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        const inputText = document.getElementById('inputText');
+        const outputContainer = document.getElementById('outputContainer');
+        const partCount = document.getElementById('partCount');
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        
+        // 初始加载时分割空文本
+        splitText();
+        
+        // 监听输入变化
+        inputText.addEventListener('input', splitText);
+        
+        // 字体大小调整
+        fontSizeSlider.addEventListener('input', function() {
+            const size = this.value + 'px';
+            inputText.style.fontSize = size;
+            document.querySelectorAll('.output-text').forEach(textarea => {
+                textarea.style.fontSize = size;
+            });
+        });
+        
+        function splitText() {
+            const text = inputText.value;
+            const maxLength = 500;
+            const paragraphs = [];
+            
+            if (!text.trim()) {
+                outputContainer.innerHTML = '';
+                partCount.textContent = '';
+                return;
+            }
+            
+            // 智能分割算法
+            let currentParagraph = '';
+            let currentLength = 0;
+            
+            // 首先按段落分割
+            const rawParagraphs = text.split('\n\n');
+            
+            for (let p of rawParagraphs) {
+                p = p.trim();
+                if (!p) continue;
+                
+                // 修正：使用正确的字数计算方法
+                const paragraphLength = p.length;
+                
+                if (currentLength + paragraphLength + (currentParagraph ? 2 : 0) <= maxLength) {
+                    // 如果当前段落加上新段落不超过限制
+                    currentParagraph += (currentParagraph ? '\n\n' : '') + p;
+                    currentLength = currentParagraph.length; // 修正：直接使用字符串长度
+                } else {
+                    // 如果当前段落加上新段落会超过限制
+                    if (currentParagraph) {
+                        paragraphs.push({
+                            text: currentParagraph, 
+                            length: currentLength
+                        });
+                    }
+                    
+                    // 处理新段落本身超过限制的情况
+                    if (paragraphLength > maxLength) {
+                        // 按句子分割
+                        const sentences = p.split(/(?<=[。！？；.?!;])/g);
+                        currentParagraph = '';
+                        currentLength = 0;
+                        
+                        for (let s of sentences) {
+                            s = s.trim();
+                            if (!s) continue;
+                            
+                            // 修正：使用正确的字数计算方法
+                            const sentenceLength = s.length;
+                            
+                            if (currentLength + sentenceLength <= maxLength) {
+                                currentParagraph += s;
+                                currentLength += sentenceLength;
+                            } else {
+                                if (currentParagraph) {
+                                    paragraphs.push({
+                                        text: currentParagraph, 
+                                        length: currentLength
+                                    });
+                                }
+                                
+                                // 如果单个句子超过500字，需要强制分割
+                                if (sentenceLength > maxLength) {
+                                    let remainingSentence = s;
+                                    while (remainingSentence.length > 0) {
+                                        const chunk = remainingSentence.substring(0, maxLength);
+                                        paragraphs.push({
+                                            text: chunk,
+                                            length: chunk.length  // 修正：直接使用字符串长度
+                                        });
+                                        remainingSentence = remainingSentence.substring(maxLength);
+                                    }
+                                    currentParagraph = '';
+                                    currentLength = 0;
+                                } else {
+                                    currentParagraph = s;
+                                    currentLength = sentenceLength;
+                                }
+                            }
+                        }
+                    } else {
+                        currentParagraph = p;
+                        currentLength = paragraphLength;
+                    }
+                }
+            }
+            
+            if (currentParagraph) {
+                paragraphs.push({
+                    text: currentParagraph, 
+                    length: currentLength
+                });
+            }
+            
+            // 生成输出HTML
+            outputContainer.innerHTML = '';
+            
+            if (paragraphs.length === 0) {
+                partCount.textContent = '';
+                return;
+            }
+            
+            partCount.textContent = `(${paragraphs.length} 部分)`;
+            
+            paragraphs.forEach((para, index) => {
+                const box = document.createElement('div');
+                box.className = 'output-box';
+                
+                const boxHeader = document.createElement('div');
+                boxHeader.className = 'output-box-header';
+                
+                const partNumber = document.createElement('div');
+                partNumber.className = 'part-number';
+                partNumber.textContent = `第 ${index + 1} 部分`;
+                boxHeader.appendChild(partNumber);
+                
+                const charCount = document.createElement('div');
+                charCount.className = 'char-count';
+                charCount.textContent = `${para.length} 字`;
+                boxHeader.appendChild(charCount);
+                
+                box.appendChild(boxHeader);
+                
+                const textarea = document.createElement('textarea');
+                textarea.className = 'output-text';
+                textarea.value = para.text;
+                textarea.style.fontSize = fontSizeSlider.value + 'px';
+                
+                // 让输出框自动调整高度
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+                textarea.setAttribute('data-index', index);
+                
+                textarea.addEventListener('input', function() {
+                    // 自动调整高度
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight) + 'px';
+                    
+                    // 更新字数统计 - 修正：直接使用字符串长度
+                    const newLength = this.value.length;
+                    charCount.textContent = `${newLength} 字`;
+                    
+                    // 更新左侧输入框
+                    updateInputText();
+                });
+                
+                box.appendChild(textarea);
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.textContent = '复制';
+                copyBtn.addEventListener('click', function() {
+                    textarea.select();
+                    document.execCommand('copy');
+                    
+                    // 视觉反馈
+                    this.textContent = '已复制';
+                    this.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        this.textContent = '复制';
+                        this.classList.remove('copied');
+                    }, 2000);
+                });
+                box.appendChild(copyBtn);
+                
+                outputContainer.appendChild(box);
+            });
+            
+            // 显示后调整所有文本框高度
+            setTimeout(() => {
+                document.querySelectorAll('.output-text').forEach(area => {
+                    area.style.height = 'auto';
+                    area.style.height = (area.scrollHeight) + 'px';
+                });
+            }, 0);
+        }
+        
+        function updateInputText() {
+            const outputTexts = document.querySelectorAll('.output-text');
+            let combinedText = '';
+            
+            outputTexts.forEach((textarea, index) => {
+                if (index > 0) combinedText += '\n\n';
+                combinedText += textarea.value;
+            });
+            
+            if (combinedText !== inputText.value) {
+                inputText.value = combinedText;
+            }
+        }
+        
+        // 删除错误的字数计算函数，直接使用 string.length
+        
+        // 调整左侧输入框高度
+        inputText.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+        
+        // 初始化时调整左侧输入框高度
+        setTimeout(() => {
+            inputText.style.height = 'auto';
+            inputText.style.height = (inputText.scrollHeight) + 'px';
+        }, 0);
+        
+        // 监听窗口大小变化，调整文本区域高度
+        window.addEventListener('resize', function() {
+            document.querySelectorAll('.output-text').forEach(area => {
+                area.style.height = 'auto';
+                area.style.height = (area.scrollHeight) + 'px';
+            });
+            inputText.style.height = 'auto';
+            inputText.style.height = (inputText.scrollHeight) + 'px';
+        });
+    </script>
+</body>
+</html>
